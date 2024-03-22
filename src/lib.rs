@@ -20,7 +20,7 @@ mod tests;
 /// The keys and values are both 256-bit.
 /// The data structure is based on a sparse merkle tree where
 /// all leaves exist at depth 64.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Smt<H: Sha256> {
     hasher: PhantomData<H>,
     root: H::DigestPtr,
@@ -190,10 +190,14 @@ impl<H: Sha256> Smt<H> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub struct Key(pub [u32; 8]);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub struct Value(pub [u32; 8]);
 
 impl Value {
@@ -204,6 +208,7 @@ impl Value {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct SmtProof<H> {
     pub path: MerklePath,
     pub leaf: SmtLeaf<H>,
@@ -234,6 +239,7 @@ impl<H: Sha256> SmtProof<H> {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct MerklePath {
     pub nodes: Vec<Digest>,
 }
@@ -267,7 +273,18 @@ impl MerklePath {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(
+    Debug,
+    Default,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+)]
 struct NodeIndex {
     depth: u8,
     value: u64,
@@ -293,7 +310,7 @@ enum Side {
     Right,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 struct InnerNode {
     left: Digest,
     right: Digest,

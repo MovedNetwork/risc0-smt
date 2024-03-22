@@ -6,7 +6,7 @@ use {
 
 pub const LEAF_DEPTH: u8 = 64;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct SmtLeaf<H> {
     index: LeafIndex,
     kvs: BTreeMap<Key, Value>,
@@ -100,7 +100,18 @@ impl<H: Sha256> SmtLeaf<H> {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(
+    Debug,
+    Default,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+)]
 pub struct LeafIndex {
     pub value: u64,
 }

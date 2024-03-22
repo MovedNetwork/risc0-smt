@@ -1,5 +1,34 @@
 use {super::*, risc0_zkvm::sha::Impl};
 
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+struct SerdeImpl;
+
+impl Sha256 for SerdeImpl {
+    type DigestPtr = <Impl as Sha256>::DigestPtr;
+
+    fn hash_bytes(bytes: &[u8]) -> Self::DigestPtr {
+        Impl::hash_bytes(bytes)
+    }
+
+    fn compress(state: &Digest, block_half1: &Digest, block_half2: &Digest) -> Self::DigestPtr {
+        Impl::compress(state, block_half1, block_half2)
+    }
+
+    fn compress_slice(state: &Digest, blocks: &[risc0_zkvm::sha::Block]) -> Self::DigestPtr {
+        Impl::compress_slice(state, blocks)
+    }
+
+    fn hash_raw_pod_slice<T: bytemuck::Pod>(slice: &[T]) -> Self::DigestPtr {
+        Impl::hash_raw_pod_slice(slice)
+    }
+}
+
+#[test]
+fn test_serde() {
+    let smt = Smt::<SerdeImpl>::new();
+    serde_json::to_vec(&smt).unwrap();
+}
+
 #[test]
 fn test_create_empty_tree() {
     let smt = Smt::<Impl>::new();
