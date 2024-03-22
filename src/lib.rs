@@ -6,7 +6,6 @@ use {
     std::{
         borrow::Cow,
         collections::{btree_map::Entry, BTreeMap},
-        marker::PhantomData,
         ops::Deref,
     },
 };
@@ -21,26 +20,22 @@ mod tests;
 /// The data structure is based on a sparse merkle tree where
 /// all leaves exist at depth 64.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct Smt<H: Sha256> {
-    hasher: PhantomData<H>,
-    root: H::DigestPtr,
-    leaves: BTreeMap<u64, SmtLeaf<H>>,
+pub struct Smt {
+    root: Digest,
+    leaves: BTreeMap<u64, SmtLeaf>,
     inner_nodes: BTreeMap<NodeIndex, InnerNode>,
 }
 
-impl<H: Sha256> Default for Smt<H> {
+impl Default for Smt {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<H: Sha256> Smt<H> {
+impl Smt {
     pub fn new() -> Self {
-        let empty_subtree = EmptySubtreeRoots::entry(LEAF_DEPTH, 1);
-        let root = H::hash_pair(empty_subtree, empty_subtree);
         Self {
-            hasher: PhantomData,
-            root,
+            root: *EmptySubtreeRoots::entry(LEAF_DEPTH, 0),
             leaves: BTreeMap::new(),
             inner_nodes: BTreeMap::new(),
         }
@@ -48,7 +43,7 @@ impl<H: Sha256> Smt<H> {
 
     /// Get the value associated with the key, along with a proof this lookup is correct.
     /// Note: by default all keys are associated with `Value::EMPTY`.
-    pub fn get(&self, key: &Key) -> (Value, SmtProof<H>) {
+    pub fn get(&self, key: &Key) -> (Value, SmtProof) {
         let leaf_index = key_to_leaf_index(key);
         let leaf = self
             .leaves
@@ -82,9 +77,9 @@ impl<H: Sha256> Smt<H> {
     /// Insert a key-value pair into the SMT, returning the old value
     /// associated with that key.
     /// Note: by default all keys are associated with `Value::EMPTY`.
-    pub fn insert(&mut self, key: Key, value: Value) -> Value {
+    pub fn insert<H: Sha256>(&mut self, key: Key, value: Value) -> Value {
         if value == Value::EMPTY {
-            return self.remove(&key);
+            return self.remove::<H>(&key);
         }
 
         let leaf_index = key_to_leaf_index(&key);
@@ -99,15 +94,15 @@ impl<H: Sha256> Smt<H> {
             return value;
         }
 
-        let leaf_hash = leaf.hash();
-        self.recompute_nodes_from_leaf_to_root(leaf_index, leaf_hash);
+        let leaf_hash = leaf.hash::<H>();
+        self.recompute_nodes_from_leaf_to_root::<H>(leaf_index, leaf_hash);
 
         old_value
     }
 
     /// Remove a key from the SMT.
     /// Note: even after this operation the key is associated with `Value::EMPTY`.
-    pub fn remove(&mut self, key: &Key) -> Value {
+    pub fn remove<H: Sha256>(&mut self, key: &Key) -> Value {
         let leaf_index = key_to_leaf_index(key);
 
         let (old_value, leaf_hash) = match self.leaves.entry(leaf_index.value) {
@@ -117,11 +112,11 @@ impl<H: Sha256> Smt<H> {
                     None => return Value::EMPTY,
                     Some(old_value) => old_value,
                 };
-                (old_value, leaf.get().hash())
+                (old_value, leaf.get().hash::<H>())
             }
         };
 
-        self.recompute_nodes_from_leaf_to_root(leaf_index, leaf_hash);
+        self.recompute_nodes_from_leaf_to_root::<H>(leaf_index, leaf_hash);
 
         old_value
     }
@@ -131,7 +126,7 @@ impl<H: Sha256> Smt<H> {
         &self.root
     }
 
-    fn recompute_nodes_from_leaf_to_root(
+    fn recompute_nodes_from_leaf_to_root<H: Sha256>(
         &mut self,
         leaf_index: LeafIndex,
         leaf_hash: Option<H::DigestPtr>,
@@ -173,7 +168,7 @@ impl<H: Sha256> Smt<H> {
                 self.inner_nodes.insert(index, new_inner_node);
             }
         }
-        self.root = node_hash;
+        self.root = *node_hash;
     }
 
     fn get_inner_node<'a>(&'a self, index: &NodeIndex) -> Cow<'a, InnerNode> {
@@ -209,13 +204,13 @@ impl Value {
 }
 
 #[derive(Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct SmtProof<H> {
+pub struct SmtProof {
     pub path: MerklePath,
-    pub leaf: SmtLeaf<H>,
+    pub leaf: SmtLeaf,
 }
 
-impl<H: Sha256> SmtProof<H> {
-    pub fn verify(&self, key: &Key, value: &Value, root: &Digest) -> bool {
+impl SmtProof {
+    pub fn verify<H: Sha256>(&self, key: &Key, value: &Value, root: &Digest) -> bool {
         let leaf_value = match self.leaf.get(key) {
             Some(v) => v,
             None => return false,
@@ -225,13 +220,13 @@ impl<H: Sha256> SmtProof<H> {
             return false;
         }
 
-        let proof_root = self.compute_root();
+        let proof_root = self.compute_root::<H>();
 
         proof_root.deref() == root
     }
 
-    pub fn compute_root(&self) -> H::DigestPtr {
-        let leaf_hash = self.leaf.hash();
+    pub fn compute_root<H: Sha256>(&self) -> H::DigestPtr {
+        let leaf_hash = self.leaf.hash::<H>();
         self.path.compute_root::<H>(
             self.leaf.index().value,
             leaf_hash.as_deref().unwrap_or(&Digest::ZERO),

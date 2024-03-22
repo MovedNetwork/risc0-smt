@@ -1,48 +1,25 @@
 use {super::*, risc0_zkvm::sha::Impl};
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
-struct SerdeImpl;
-
-impl Sha256 for SerdeImpl {
-    type DigestPtr = <Impl as Sha256>::DigestPtr;
-
-    fn hash_bytes(bytes: &[u8]) -> Self::DigestPtr {
-        Impl::hash_bytes(bytes)
-    }
-
-    fn compress(state: &Digest, block_half1: &Digest, block_half2: &Digest) -> Self::DigestPtr {
-        Impl::compress(state, block_half1, block_half2)
-    }
-
-    fn compress_slice(state: &Digest, blocks: &[risc0_zkvm::sha::Block]) -> Self::DigestPtr {
-        Impl::compress_slice(state, blocks)
-    }
-
-    fn hash_raw_pod_slice<T: bytemuck::Pod>(slice: &[T]) -> Self::DigestPtr {
-        Impl::hash_raw_pod_slice(slice)
-    }
-}
-
 #[test]
 fn test_serde() {
-    let smt = Smt::<SerdeImpl>::new();
+    let smt = Smt::new();
     serde_json::to_vec(&smt).unwrap();
 }
 
 #[test]
 fn test_create_empty_tree() {
-    let smt = Smt::<Impl>::new();
+    let smt = Smt::new();
     assert_eq!(smt.get_root(), EmptySubtreeRoots::entry(LEAF_DEPTH, 0));
 
     let key = Key([0; 8]);
     let (value, proof) = smt.get(&key);
     assert_eq!(value, Value::EMPTY);
-    assert!(proof.verify(&key, &value, smt.get_root()));
+    assert!(proof.verify::<Impl>(&key, &value, smt.get_root()));
 }
 
 #[test]
 fn test_insert() {
-    let mut smt = Smt::<Impl>::new();
+    let mut smt = Smt::new();
     let empty_root = *smt.get_root();
 
     let key_1 = Key([1, 0, 0, 0, 0, 0, 0, 0]);
@@ -58,11 +35,11 @@ fn test_insert() {
     let old_value = insert_and_check_proof(&mut smt, key_2, value_2);
     assert_eq!(old_value, Value::EMPTY);
 
-    let removed_value = smt.remove(&key_2);
+    let removed_value = smt.remove::<Impl>(&key_2);
     assert_eq!(removed_value, value_2);
     assert_eq!(&single_insert_root, smt.get_root());
 
-    let removed_value = smt.remove(&key_1);
+    let removed_value = smt.remove::<Impl>(&key_1);
     assert_eq!(removed_value, value_1);
     assert_eq!(&empty_root, smt.get_root());
 
@@ -72,12 +49,12 @@ fn test_insert() {
     }
 }
 
-fn insert_and_check_proof(smt: &mut Smt<Impl>, key: Key, value: Value) -> Value {
-    let old_value = smt.insert(key, value);
+fn insert_and_check_proof(smt: &mut Smt, key: Key, value: Value) -> Value {
+    let old_value = smt.insert::<Impl>(key, value);
 
     let (inserted_value, proof) = smt.get(&key);
     assert_eq!(inserted_value, value);
-    assert!(proof.verify(&key, &value, smt.get_root()));
+    assert!(proof.verify::<Impl>(&key, &value, smt.get_root()));
 
     old_value
 }

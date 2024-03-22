@@ -1,34 +1,22 @@
 use {
     crate::{Key, NodeIndex, Value},
     risc0_zkvm::sha::Sha256,
-    std::{collections::BTreeMap, marker::PhantomData},
+    std::collections::BTreeMap,
 };
 
 pub const LEAF_DEPTH: u8 = 64;
 
-#[derive(Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct SmtLeaf<H> {
+#[derive(Debug, PartialEq, Eq, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SmtLeaf {
     index: LeafIndex,
     kvs: BTreeMap<Key, Value>,
-    hasher: PhantomData<H>,
 }
 
-impl<H> Clone for SmtLeaf<H> {
-    fn clone(&self) -> Self {
-        Self {
-            index: self.index,
-            kvs: self.kvs.clone(),
-            hasher: PhantomData,
-        }
-    }
-}
-
-impl<H> SmtLeaf<H> {
+impl SmtLeaf {
     pub const fn new(index: LeafIndex) -> Self {
         Self {
             index,
             kvs: BTreeMap::new(),
-            hasher: PhantomData,
         }
     }
 
@@ -36,11 +24,7 @@ impl<H> SmtLeaf<H> {
         let index = key_to_leaf_index(&key);
         let mut kvs = BTreeMap::new();
         kvs.insert(key, value);
-        Self {
-            index,
-            kvs,
-            hasher: PhantomData,
-        }
+        Self { index, kvs }
     }
 
     /// If the index of the given key matches the index of this leaf
@@ -78,10 +62,8 @@ impl<H> SmtLeaf<H> {
     pub fn remove(&mut self, key: &Key) -> Option<Value> {
         self.kvs.remove(key)
     }
-}
 
-impl<H: Sha256> SmtLeaf<H> {
-    pub fn hash(&self) -> Option<H::DigestPtr> {
+    pub fn hash<H: Sha256>(&self) -> Option<H::DigestPtr> {
         let words: Vec<u32> = self
             .kvs
             .iter()

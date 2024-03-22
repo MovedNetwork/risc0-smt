@@ -560,7 +560,6 @@ dependencies = [
 name = "risc0-smt"
 version = "0.1.0"
 dependencies = [
- "bytemuck",
  "risc0-zkvm",
  "serde",
  "serde_json",
